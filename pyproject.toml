@@ -1,0 +1,43 @@
+[project]
+name = "email-existence-checker"
+version = "1.0.0"
+description = "Asynchronous email validator using SMTP with domain-based connection pooling"
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["email", "validation", "smtp", "async", "verification"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Communications :: Email",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "dnspython>=2.8.0",
+    "email-validator>=2.3.0",
+]
+license.file = "LICENSE"
+
+[project.urls]
+Homepage = "https://github.com/mertemr/email-existence-checker"
+Repository = "https://github.com/mertemr/email-existence-checker"
+Issues = "https://github.com/mertemr/email-existence-checker/issues"
+
+[project.scripts]
+email-checker = "email_existence_checker.cli:main"
+
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = [
+    "email_existence_checker",
+    "email_existence_checker.*",
+]
