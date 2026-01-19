@@ -247,7 +247,7 @@ The checker intelligently handles different SMTP error codes:
 - **Rate Limiting (429, 452, 454)**: Triggers cooldown period
 - **Permanent (550, 551, 552, 553, 554)**: No retry, marked as invalid
 
-See [ADVANCED_USAGE.md](ADVANCED_USAGE.md) for detailed information.
+See [ADVANCED USAGE](./docs/ADVANCED_USAGE.md) for detailed information.
 
 ## Performance Tips
 
@@ -275,7 +275,7 @@ email-checker -f outlook_10k.txt \
 email-checker -f outlook_10k.txt --resume
 ```
 
-See [ADVANCED_USAGE.md](ADVANCED_USAGE.md) for more scenarios.
+See [ADVANCED USAGE](./docs/ADVANCED_USAGE.md) for more scenarios.
 
 ## API Reference
 
@@ -319,8 +319,7 @@ Main class for email validation.
 
 ## Documentation
 
-- [ADVANCED_USAGE.md](ADVANCED_USAGE.md) - Detailed usage guide
-- [CHANGELOG.md](CHANGELOG.md) - Version history and changes
+- [ADVANCED USAGE](./docs/ADVANCED_USAGE.md) - Detailed usage guide
 - [examples.py](examples.py) - Code examples
 
 ## Development
