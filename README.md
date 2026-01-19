@@ -1,13 +1,16 @@
 # Email Existence Checker
 
-Asynchronous email validator using SMTP with domain-based connection pooling for high-performance email verification.
+Asynchronous email validator using SMTP with domain-based connection pooling, intelligent rate limiting, and checkpoint support for high-performance email verification.
 
-## Features
+## ✨ Features
 
 - ⚡ **High Performance**: Asynchronous processing with domain-based connection pooling
-- 🔄 **Smart Retry Logic**: Automatic retry with exponential backoff
-- 🌐 **Domain-aware**: Groups emails by domain for efficient SMTP connections
-- 📊 **Detailed Results**: Comprehensive validation results with SMTP codes
+- 🧠 **Smart Retry Logic**: SMTP code-aware retry with exponential backoff
+- 🛡️ **Rate Limiting**: Adaptive throttling prevents server blocks (especially for Outlook, Gmail)
+- 💾 **Checkpoint & Resume**: Auto-save progress, resume interrupted sessions
+- 📁 **Multi-Format Support**: Read/write TXT, CSV, JSON formats
+- 🌐 **Domain-Aware**: Groups emails by domain for efficient SMTP connections
+- 📊 **Detailed Analytics**: Comprehensive validation results with statistics
 - 🎯 **Dual Interface**: Use as CLI tool or Python library
 - 🔌 **Connection Management**: Configurable connection pools per domain
 
@@ -38,8 +41,17 @@ uv pip install -e .
 # Basic usage
 email-checker -f emails.txt
 
-# With custom settings
-email-checker -f emails.txt -o results.json -w 20 -r 3 --max-connections 10
+# With rate limiting and checkpoints (recommended for large batches)
+email-checker -f emails.txt \
+  --requests-per-second 5 \
+  --checkpoint-interval 100 \
+  --save-failed failed.txt
+
+# Resume interrupted session
+email-checker -f emails.txt --resume
+
+# CSV input/output
+email-checker -f emails.csv -o results.csv
 
 # Quiet mode
 email-checker -f emails.txt -q
@@ -48,12 +60,19 @@ email-checker -f emails.txt -q
 #### CLI Options
 
 ```
--f, --file FILE              Input file with emails (one per line) [required]
--o, --output OUTPUT          Output JSON file (default: results.json)
+-f, --file FILE              Input file (supports .txt, .csv, .json) [required]
+-o, --output OUTPUT          Output file (format auto-detected)
+--output-format FORMAT       Force output format (json/csv/txt)
 -w, --workers N              Workers per domain (default: 10)
 -r, --max-retries N          Max retry attempts (default: 5)
 --max-connections N          Max SMTP connections per domain (default: 5)
 --timeout N                  SMTP timeout in seconds (default: 30)
+--requests-per-second N      Max requests/sec per domain (default: 10.0)
+--disable-rate-limiting      Disable adaptive rate limiting
+--checkpoint-interval N      Save checkpoint every N emails (default: 100)
+--checkpoint-file FILE       Checkpoint file path (default: checkpoint.json)
+--resume                     Resume from checkpoint
+--save-failed FILE           Save failed emails separately
 -q, --quiet                  Suppress verbose output
 ```
 
@@ -64,12 +83,15 @@ import asyncio
 from email_existence_checker import EmailChecker
 
 async def main():
-    # Create checker instance
+    # Create checker instance with rate limiting
     checker = EmailChecker(
-        max_retries=3,
+        max_retries=5,
         max_connections=5,
         workers_per_domain=10,
         timeout=30,
+        enable_rate_limiting=True,
+        requests_per_second=10.0,
+        checkpoint_interval=100,
         verbose=True
     )
     
@@ -90,6 +112,12 @@ async def main():
     # Detailed results
     for result in results['results']:
         print(f"{result['email']}: {result['is_valid']}")
+    
+    # Check rate limiter stats
+    if results.get('rate_limiter_stats'):
+        for domain, stats in results['rate_limiter_stats'].items():
+            if stats.get('rate_limits_hit', 0) > 0:
+                print(f"⚠ {domain}: hit rate limit {stats['rate_limits_hit']} times")
 
 # Run
 asyncio.run(main())
@@ -98,44 +126,72 @@ asyncio.run(main())
 #### Advanced Usage
 
 ```python
-from email_existence_checker import EmailChecker, EmailTask
+from email_existence_checker import (
+    EmailChecker,
+    read_emails_from_file,
+    write_results_to_file,
+)
 import asyncio
 
-async def validate_with_details():
+async def validate_with_resume():
+    # Read from any format (CSV, JSON, TXT)
+    emails = read_emails_from_file("emails.csv")
+    
     checker = EmailChecker(
         max_retries=5,
-        max_connections=10,
-        workers_per_domain=20,
-        timeout=45,
+        enable_rate_limiting=True,
+        requests_per_second=5.0,
+        checkpoint_interval=100,
         verbose=False  # Silent mode
     )
     
-    emails = ["user1@gmail.com", "user2@outlook.com"]
-    results = await checker.process_emails(emails)
+    # Resume from checkpoint if exists
+    results = await checker.process_emails(emails, resume=True)
     
-    # Check individual results
-    for result in results['results']:
-        if result['status'] == 'success':
-            print(f"✓ {result['email']}")
-            print(f"  SMTP Code: {result['smtp_code']}")
-            print(f"  Message: {result['smtp_message']}")
-        else:
-            print(f"✗ {result['email']}")
-            print(f"  Error: {result.get('error', 'Unknown')}")
+    # Save to different formats
+    write_results_to_file("results.json", results)
+    write_results_to_file("results.csv", results)
+    
+    # Save failed for retry
+    if results['failed']:
+        from email_existence_checker.checkpoint import save_failed_to_file
+        save_failed_to_file(results['failed'], "failed_emails.txt")
     
     return results
 
-asyncio.run(validate_with_details())
+asyncio.run(validate_with_resume())
 ```
 
 ### Input File Format
 
-Create a text file with one email per line:
-
+**TXT (Plain Text):**
 ```text
 user1@example.com
 user2@domain.org
-test@company.com
+user3@company.com
+```
+
+**CSV:**
+```csv
+email,name
+user1@example.com,John Doe
+user2@domain.org,Jane Smith
+```
+
+**JSON:**
+```json
+[
+  "user1@example.com",
+  "user2@domain.org"
+]
+```
+
+Or with metadata:
+```json
+[
+  {"email": "user1@example.com", "name": "John"},
+  {"email": "user2@domain.org", "name": "Jane"}
+]
 ```
 
 ### Output Format
@@ -177,16 +233,49 @@ Results are saved in JSON format:
 1. **Domain Grouping**: Emails are grouped by domain for efficient processing
 2. **MX Resolution**: Resolves MX records for each domain
 3. **Connection Pooling**: Maintains reusable SMTP connections per domain
-4. **Concurrent Workers**: Multiple workers process emails simultaneously per domain
-5. **SMTP Verification**: Validates emails using SMTP RCPT TO command
-6. **Smart Retry**: Failed validations are retried with exponential backoff
+4. **Rate Limiting**: Monitors SMTP responses and adjusts request rate
+5. **Concurrent Workers**: Multiple workers process emails simultaneously per domain
+6. **SMTP Verification**: Validates emails using SMTP RCPT TO command
+7. **Smart Retry**: Failed validations are retried based on SMTP error codes
+8. **Checkpoint System**: Auto-saves progress for resumable sessions
+
+### SMTP Error Handling
+
+The checker intelligently handles different SMTP error codes:
+
+- **Retryable (421, 450, 451, 452)**: Temporary errors, will retry
+- **Rate Limiting (429, 452, 454)**: Triggers cooldown period
+- **Permanent (550, 551, 552, 553, 554)**: No retry, marked as invalid
+
+See [ADVANCED_USAGE.md](ADVANCED_USAGE.md) for detailed information.
 
 ## Performance Tips
 
-- **Workers**: Increase `workers_per_domain` for faster processing
-- **Connections**: Adjust `max_connections` based on server limits
-- **Retry**: Lower `max_retries` for faster processing of invalid emails
-- **Timeout**: Reduce `timeout` if servers respond quickly
+- **Rate Limiting**: Enable for public email providers (Gmail, Outlook, Yahoo)
+- **Checkpoints**: Always use for batches > 1000 emails
+- **Workers**: Increase `workers_per_domain` for faster processing (10-20)
+- **Connections**: Adjust `max_connections` based on server limits (3-10)
+- **Request Rate**: Conservative `requests_per_second` (3-5) prevents blocks
+- **Retry**: Lower `max_retries` (2-3) for faster processing of invalid emails
+- **Timeout**: Reduce `timeout` (15-30s) if servers respond quickly
+
+### Real-World Example: 10k Outlook Emails
+
+```bash
+# Problem: Outlook blocks after ~500 requests
+# Solution: Rate limiting + checkpoints
+
+email-checker -f outlook_10k.txt \
+  --requests-per-second 3 \
+  --checkpoint-interval 100 \
+  --save-failed failed.txt \
+  --max-retries 3
+
+# If blocked, wait 5-10 minutes then:
+email-checker -f outlook_10k.txt --resume
+```
+
+See [ADVANCED_USAGE.md](ADVANCED_USAGE.md) for more scenarios.
 
 ## API Reference
 
@@ -200,22 +289,39 @@ Main class for email validation.
 - `workers_per_domain` (int): Concurrent workers per domain (default: 10)
 - `timeout` (int): SMTP connection timeout in seconds (default: 30)
 - `verbose` (bool): Enable verbose output (default: True)
+- `enable_rate_limiting` (bool): Enable adaptive rate limiting (default: True)
+- `requests_per_second` (float): Max requests/sec per domain (default: 10.0)
+- `checkpoint_interval` (int): Save checkpoint every N emails (default: 100)
+- `checkpoint_file` (str): Path to checkpoint file (default: "checkpoint.json")
 
 **Methods:**
-- `async process_emails(email_list: list[str]) -> dict`: Validate emails and return results
+- `async process_emails(email_list: list[str], resume: bool = False) -> dict`: Validate emails and return results
 
 ### Result Dictionary
 
 ```python
 {
-    "total": int,           # Total emails to process
-    "processed": int,       # Emails processed
-    "valid": int,          # Valid emails count
-    "invalid": int,        # Invalid emails count
-    "results": list,       # Detailed results
-    "failed": list         # Failed validations
+    "total": int,                    # Total emails to process
+    "processed": int,                # Emails processed
+    "valid": int,                    # Valid emails count
+    "invalid": int,                  # Invalid emails count
+    "results": list[dict],           # Detailed results
+    "failed": list[dict],            # Failed validations
+    "rate_limiter_stats": dict,      # Rate limiter statistics
 }
 ```
+
+### Utility Functions
+
+- `read_emails_from_file(path)`: Read emails from TXT/CSV/JSON file
+- `write_results_to_file(path, data, format=None)`: Write results in any format
+- `save_failed_to_file(failed, path)`: Save failed emails for retry
+
+## Documentation
+
+- [ADVANCED_USAGE.md](ADVANCED_USAGE.md) - Detailed usage guide
+- [CHANGELOG.md](CHANGELOG.md) - Version history and changes
+- [examples.py](examples.py) - Code examples
 
 ## Development
 

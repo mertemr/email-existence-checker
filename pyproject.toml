@@ -1,7 +1,7 @@
 [project]
 name = "email-existence-checker"
-version = "1.0.0"
-description = "Asynchronous email validator using SMTP with domain-based connection pooling"
+version = "1.1.0"
+description = "Asynchronous email validator with SMTP, rate limiting, and checkpoint support"
 readme = "README.md"
 requires-python = ">=3.10"
 keywords = ["email", "validation", "smtp", "async", "verification"]
@@ -41,3 +41,12 @@ include = [
     "email_existence_checker",
     "email_existence_checker.*",
 ]
+
+[dependency-groups]
+dev = ["email-existence-checker"]
+
+[tool.uv.workspace]
+members = ["."]
+
+[tool.uv.sources]
+email-existence-checker = { workspace = true, editable = true }
