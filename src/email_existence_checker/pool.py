@@ -64,24 +64,18 @@ class DomainConnectionPool:
         async with self.lock:
             if self.connection_count < self.max_connections:
                 try:
-                    conn = await asyncio.get_event_loop().run_in_executor(
-                        None, self._create_connection
-                    )
+                    conn = await asyncio.get_event_loop().run_in_executor(None, self._create_connection)
                     self.connection_count += 1
                     self.connections.append(conn)
                     return conn
                 except Exception as e:
-                    raise SMTPConnectionError(
-                        f"Failed to create connection for {self.domain}"
-                    ) from e
+                    raise SMTPConnectionError(f"Failed to create connection for {self.domain}") from e
 
         # Wait for available connection
         try:
             return await asyncio.wait_for(self.available.get(), timeout=10.0)
         except asyncio.TimeoutError as e:
-            raise SMTPConnectionError(
-                f"Timeout waiting for connection for {self.domain}"
-            ) from e
+            raise SMTPConnectionError(f"Timeout waiting for connection for {self.domain}") from e
 
     def _create_connection(self) -> smtplib.SMTP:
         """Create a new SMTP connection.
