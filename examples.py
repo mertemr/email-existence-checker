@@ -9,7 +9,35 @@ from email_existence_checker import (
 )
 
 
-# Example 1: Basic validation
+# Example 1: Dry-run mode (format validation only)
+async def dry_run_validation():
+    """Quick email format validation without SMTP checks."""
+    checker = EmailChecker(
+        dry_run=True,  # Only validate format, no SMTP
+        verbose=True,
+    )
+
+    emails = [
+        "user@example.com",    # Valid format
+        "invalid.email",       # Invalid format (missing @)
+        "test@gmail.com",      # Valid format
+        "bad@@example.com",    # Invalid format (double @)
+    ]
+
+    results = await checker.process_emails(emails)
+
+    print(f"✓ Valid format: {results['valid']}")
+    print(f"✗ Invalid format: {results['invalid']}")
+
+    # Show details
+    for result in results['results']:
+        if result.get('is_valid'):
+            print(f"  ✓ {result['email']}")
+        else:
+            print(f"  ✗ {result['email']}: {result.get('error', 'Invalid format')}")
+
+
+# Example 2: Basic validation
 async def basic_validation():
     """Simple email validation example."""
     checker = EmailChecker(verbose=True)
@@ -22,7 +50,7 @@ async def basic_validation():
     print(f"Invalid: {results['invalid']}")
 
 
-# Example 2: With rate limiting
+# Example 3: With rate limiting
 async def with_rate_limiting():
     """Email validation with rate limiting."""
     checker = EmailChecker(
@@ -42,7 +70,7 @@ async def with_rate_limiting():
             print(f"⚠ {domain}: Hit rate limit {stats['rate_limits_hit']} times")
 
 
-# Example 3: With checkpoints (resume capability)
+# Example 4: With checkpoints (resume capability)
 async def with_checkpoints():
     """Email validation with checkpoint support."""
     checker = EmailChecker(
@@ -205,6 +233,7 @@ if __name__ == "__main__":
 
     # Uncomment the example you want to run:
 
+    # asyncio.run(dry_run_validation())  # Format validation only
     # asyncio.run(basic_validation())
     # asyncio.run(with_rate_limiting())
     # asyncio.run(with_checkpoints())

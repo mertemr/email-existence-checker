@@ -117,6 +117,12 @@ def create_parser() -> ArgumentParser:
         help="Suppress verbose output",
     )
 
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate email format and general statistics only (no SMTP checks)",
+    )
+
     return parser
 
 
@@ -147,6 +153,7 @@ async def async_main(args) -> None:
         requests_per_second=args.requests_per_second,
         checkpoint_interval=args.checkpoint_interval,
         checkpoint_file=args.checkpoint_file,
+        dry_run=args.dry_run,
     )
 
     start_time = time.perf_counter()
@@ -158,8 +165,9 @@ async def async_main(args) -> None:
         "processed": results["processed"],
         "valid": results["valid"],
         "invalid": results["invalid"],
-        "elapsed_seconds": round(elapsed, 2),
-        "emails_per_second": round(results["processed"] / elapsed, 2) if elapsed > 0 else 0,
+        "elapsed_seconds": elapsed,
+        "emails_per_second": results["processed"] / elapsed if elapsed > 0 else 0,
+        # Do not round the results. It kills the precision.
         "results": results["results"],
         "failed": results["failed"],
         "rate_limiter_stats": results.get("rate_limiter_stats", {}),
@@ -185,14 +193,48 @@ async def async_main(args) -> None:
     if results["processed"] == results["total"]:
         checker.checkpoint_manager.clear_checkpoint()
 
-    print(f"\nTime elapsed    : {elapsed:.2f} seconds")
-    print(f"Speed           : {results['processed'] / elapsed:.2f} emails/second")
+    # Display stats with appropriate precision (avoid rounding errors)
+    # Use more decimal places to maintain accuracy, especially for short runs
+    speed = results['processed'] / elapsed if elapsed > 0 else 0
 
+    # Calculate percentages
+    processed = results['processed']
+    valid_count = results['valid']
+    invalid_count = results['invalid']
+
+    valid_pct = (valid_count / processed * 100) if processed > 0 else 0
+    invalid_pct = (invalid_count / processed * 100) if processed > 0 else 0
+
+    # Detailed statistics output
+    print("\n" + "="*50)
+    print("VALIDATION RESULTS")
+    print("="*50)
+    print(f"Processed       : {processed} emails")
+    print(f"  ✓ Valid      : {valid_count} ({valid_pct:.1f}%)")
+    print(f"  ✗ Invalid    : {invalid_count} ({invalid_pct:.1f}%)")
+
+    print("\nPERFORMANCE METRICS")
+    print("-"*50)
+    print(f"Time elapsed    : {elapsed:.2f} seconds")
+    print(f"Speed           : {speed:.2f} emails/second")
+
+    # Dry-run mode indicator
+    if args.dry_run:
+        print(f"Mode            : DRY-RUN (format validation only)")
+
+    # Rate limiting stats
     rate_stats = results.get("rate_limiter_stats", {})
     if rate_stats:
         total_rate_limits = sum(stats.get("rate_limits_hit", 0) for stats in rate_stats.values())
         if total_rate_limits > 0:
-            print(f"⚠ Total rate limits hit: {total_rate_limits}")
+            print(f"\nRATE LIMITING STATS")
+            print("-"*50)
+            print(f"Total rate limits hit: {total_rate_limits}")
+            for domain, stats in rate_stats.items():
+                if stats.get("rate_limits_hit", 0) > 0:
+                    print(f"  - {domain:30} {stats['rate_limits_hit']} hits")
+
+    print("="*50)
 
 
 def main() -> None:

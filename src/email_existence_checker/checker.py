@@ -41,6 +41,7 @@ class EmailChecker:
         "checkpoint_interval",
         "processed_emails",
         "enable_rate_limiting",
+        "dry_run",
     )
 
     def __init__(
@@ -54,6 +55,7 @@ class EmailChecker:
         requests_per_second: float = 10.0,
         checkpoint_interval: int = 100,
         checkpoint_file: str = "checkpoint.json",
+        dry_run: bool = False,
     ):
         """Initialize email checker.
 
@@ -67,6 +69,7 @@ class EmailChecker:
             requests_per_second: Max requests per second per domain
             checkpoint_interval: Save checkpoint every N emails
             checkpoint_file: Path to checkpoint file
+            dry_run: Enable dry-run mode (validate format only, no SMTP)
         """
         self.max_retries = max_retries
         self.max_connections = max_connections
@@ -74,6 +77,7 @@ class EmailChecker:
         self.timeout = timeout
         self.verbose = verbose
         self.enable_rate_limiting = enable_rate_limiting
+        self.dry_run = dry_run
         self.checkpoint_interval = checkpoint_interval
         self.pools: dict[str, DomainConnectionPool] = {}
         self.queues: dict[str, asyncio.Queue] = defaultdict(asyncio.Queue)
@@ -149,6 +153,32 @@ class EmailChecker:
         email = task.email
         domain = email.split("@")[1]
         from_email = f"no-reply@{domain}"
+
+        # Dry-run mode: validate format only
+        if self.dry_run:
+            try:
+                valid = validate_email(email)
+                email = valid.normalized
+                status_icon = "✓"
+                self._log(f"[{status_icon}] [DRY-RUN] [{domain}] {email:40} Format OK")
+                return {
+                    "email": email,
+                    "is_valid": True,
+                    "smtp_code": None,
+                    "smtp_message": "Format validation only (dry-run)",
+                    "attempts": 1,
+                    "status": "dry-run",
+                }
+            except EmailNotValidError as e:
+                status_icon = "✗"
+                self._log(f"[{status_icon}] [DRY-RUN] [{domain}] {email:40} Format ERROR")
+                return {
+                    "email": email,
+                    "is_valid": False,
+                    "error": f"Invalid format: {str(e)}",
+                    "attempts": 1,
+                    "status": "dry-run",
+                }
 
         # Apply rate limiting
         if self.rate_limiter:
@@ -254,27 +284,30 @@ class EmailChecker:
         """
         queue = self.queues[domain]
 
-        try:
-            pool = await self.get_or_create_pool(domain)
-        except Exception as e:
-            if domain not in self._logged_domains:
-                self._log(f"[{domain}] Pool init failed: {str(e)}")
-                self._logged_domains.add(domain)
+        # Skip pool initialization in dry-run mode
+        pool = None
+        if not self.dry_run:
+            try:
+                pool = await self.get_or_create_pool(domain)
+            except Exception as e:
+                if domain not in self._logged_domains:
+                    self._log(f"[{domain}] Pool init failed: {str(e)}")
+                    self._logged_domains.add(domain)
 
-            while not queue.empty():
-                try:
-                    task = queue.get_nowait()
-                    async with self.lock:
-                        self.failed.append({
-                            "email": task.email,
-                            "error": f"Pool initialization failed: {str(e)}",
-                            "status": "failed",
-                        })
-                        self.total_processed += 1
-                    queue.task_done()
-                except asyncio.QueueEmpty:
-                    break
-            return
+                while not queue.empty():
+                    try:
+                        task = queue.get_nowait()
+                        async with self.lock:
+                            self.failed.append({
+                                "email": task.email,
+                                "error": f"Pool initialization failed: {str(e)}",
+                                "status": "failed",
+                            })
+                            self.total_processed += 1
+                        queue.task_done()
+                    except asyncio.QueueEmpty:
+                        break
+                return
 
         while True:
             try:
@@ -414,6 +447,7 @@ class EmailChecker:
             -------------------------
             Total Emails   : {len(email_list)}
             Unique Domains : {len(domain_groups)}
+            Dry-Run Mode   : {'Enabled' if self.dry_run else 'Disabled'}
             Rate Limiting  : {'Enabled' if self.enable_rate_limiting else 'Disabled'}
             Checkpoints    : Every {self.checkpoint_interval} emails
             

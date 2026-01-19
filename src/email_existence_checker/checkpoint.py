@@ -87,6 +87,7 @@ class CheckpointManager:
             return checkpoint.get("pending_emails", [])
         return []
 
+    # TODO: Add timezone to this function (or projectwise).
     def get_checkpoint_info(self) -> dict[str, Any] | None:
         """Get information about checkpoint.
 

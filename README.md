@@ -2,17 +2,18 @@
 
 Asynchronous email validator using SMTP with domain-based connection pooling, intelligent rate limiting, and checkpoint support for high-performance email verification.
 
-## ✨ Features
+## Features
 
-- ⚡ **High Performance**: Asynchronous processing with domain-based connection pooling
-- 🧠 **Smart Retry Logic**: SMTP code-aware retry with exponential backoff
-- 🛡️ **Rate Limiting**: Adaptive throttling prevents server blocks (especially for Outlook, Gmail)
-- 💾 **Checkpoint & Resume**: Auto-save progress, resume interrupted sessions
-- 📁 **Multi-Format Support**: Read/write TXT, CSV, JSON formats
-- 🌐 **Domain-Aware**: Groups emails by domain for efficient SMTP connections
-- 📊 **Detailed Analytics**: Comprehensive validation results with statistics
-- 🎯 **Dual Interface**: Use as CLI tool or Python library
-- 🔌 **Connection Management**: Configurable connection pools per domain
+**High Performance**: Asynchronous processing with domain-based connection pooling
+- **Dry-Run Mode**: Validate email format without SMTP checks (for fast pre-screening)
+- **Smart Retry Logic**: SMTP code-aware retry with exponential backoff
+- **Rate Limiting**: Adaptive throttling prevents server blocks (especially for Outlook, Gmail)
+- **Checkpoint & Resume**: Auto-save progress, resume interrupted sessions
+- **Multi-Format Support**: Read/write TXT, CSV, JSON formats
+- **Domain-Aware**: Groups emails by domain for efficient SMTP connections
+- **Detailed Analytics**: Comprehensive validation results with statistics
+- **Dual Interface**: Use as CLI tool or Python library
+- **Connection Management**: Configurable connection pools per domain
 
 ## Installation
 
@@ -40,6 +41,9 @@ uv pip install -e .
 ```bash
 # Basic usage
 email-checker -f emails.txt
+
+# Dry-run mode: validate format only (no SMTP checks)
+email-checker -f emails.txt --dry-run
 
 # With rate limiting and checkpoints (recommended for large batches)
 email-checker -f emails.txt \
@@ -73,6 +77,7 @@ email-checker -f emails.txt -q
 --checkpoint-file FILE       Checkpoint file path (default: checkpoint.json)
 --resume                     Resume from checkpoint
 --save-failed FILE           Save failed emails separately
+--dry-run                    Validate format only (no SMTP checks)
 -q, --quiet                  Suppress verbose output
 ```
 
@@ -123,44 +128,61 @@ async def main():
 asyncio.run(main())
 ```
 
-#### Advanced Usage
+#### Dry-Run Mode (Format Validation Only)
 
 ```python
-from email_existence_checker import (
-    EmailChecker,
-    read_emails_from_file,
-    write_results_to_file,
-)
 import asyncio
+from email_existence_checker import EmailChecker
 
-async def validate_with_resume():
-    # Read from any format (CSV, JSON, TXT)
-    emails = read_emails_from_file("emails.csv")
-    
+async def validate_format():
+    # Use dry-run mode to validate email format without SMTP checks
     checker = EmailChecker(
-        max_retries=5,
-        enable_rate_limiting=True,
-        requests_per_second=5.0,
-        checkpoint_interval=100,
-        verbose=False  # Silent mode
+        dry_run=True,  # Only validate format
+        verbose=True
     )
     
-    # Resume from checkpoint if exists
-    results = await checker.process_emails(emails, resume=True)
+    emails = [
+        "user@example.com",      # Valid format
+        "invalid.email",          # Missing @ domain
+        "test@domain.org"         # Valid format
+    ]
     
-    # Save to different formats
-    write_results_to_file("results.json", results)
-    write_results_to_file("results.csv", results)
-    
-    # Save failed for retry
-    if results['failed']:
-        from email_existence_checker.checkpoint import save_failed_to_file
-        save_failed_to_file(results['failed'], "failed_emails.txt")
-    
-    return results
+    results = await checker.process_emails(emails)
+    for result in results['results']:
+        status = "✓" if result['is_valid'] else "✗"
+        print(f"{status} {result['email']}: {result.get('status')}")
 
-asyncio.run(validate_with_resume())
+asyncio.run(validate_format())
 ```
+
+**Use Cases for Dry-Run Mode:**
+- Pre-validate email list before full SMTP validation
+- Quick format checks without server load
+- Testing and development
+- Large batch initial screening
+- Fast pre-screening of millions of emails
+
+**Performance Comparison:**
+- Normal mode: ~10-50 emails/second (SMTP checks)
+- Dry-run mode: ~100-1000+ emails/second (format validation only)
+
+**Dry-Run Output Example:**
+```
+[✓] [DRY-RUN] [example.com] user@example.com          Format OK
+[✗] [DRY-RUN] [test.org]    invalid.email            Format ERROR
+[✓] [DRY-RUN] [domain.org]  test@domain.org          Format OK
+```
+
+#### Full Example
+
+```python
+import asyncio
+from email_existence_checker import EmailChecker
+
+async def main():
+    emails = [
+        "user@example.com",
+        "test@domain.org",
 
 ### Input File Format
 
@@ -196,7 +218,31 @@ Or with metadata:
 
 ### Output Format
 
-Results are saved in JSON format:
+#### Console Output (Terminal)
+
+The CLI displays formatted statistics with full precision:
+
+```
+==================================================
+VALIDATION RESULTS
+==================================================
+Processed       : 3 emails
+  ✓ Valid      : 2 (66.7%)
+  ✗ Invalid    : 1 (33.3%)
+
+PERFORMANCE METRICS
+--------------------------------------------------
+Time elapsed    : 5.23 seconds
+Speed           : 0.57 emails/second
+Mode            : DRY-RUN (format validation only)
+==================================================
+```
+
+**Note on Precision:** Console output uses `.3f` precision to avoid rounding errors in statistics. Full precision values are preserved in JSON/CSV output files.
+
+#### JSON Output Format
+
+Results are saved with full precision:
 
 ```json
 {
@@ -204,8 +250,8 @@ Results are saved in JSON format:
   "processed": 3,
   "valid": 2,
   "invalid": 1,
-  "elapsed_seconds": 5.23,
-  "emails_per_second": 0.57,
+  "elapsed_seconds": 5.234567,
+  "emails_per_second": 0.572441,
   "results": [
     {
       "email": "user1@example.com",
@@ -293,6 +339,7 @@ Main class for email validation.
 - `requests_per_second` (float): Max requests/sec per domain (default: 10.0)
 - `checkpoint_interval` (int): Save checkpoint every N emails (default: 100)
 - `checkpoint_file` (str): Path to checkpoint file (default: "checkpoint.json")
+- `dry_run` (bool): Validate format only, skip SMTP checks (default: False)
 
 **Methods:**
 - `async process_emails(email_list: list[str], resume: bool = False) -> dict`: Validate emails and return results
