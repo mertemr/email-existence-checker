@@ -134,7 +134,7 @@ async def async_main(args) -> None:
         print(f"Error: File '{args.file}' not found")
         return
     except Exception as e:
-        print(f"Error reading file: {str(e)}")
+        print(f"Error reading file: {e!s}")
         return
 
     if not emails:
@@ -144,15 +144,15 @@ async def async_main(args) -> None:
     print(f"Loaded {len(emails)} emails from {args.file}")
 
     checker = EmailChecker(
-        max_retries=args.max_retries,
         max_connections=args.max_connections,
-        workers_per_domain=args.workers,
+        max_retries=args.max_retries,
+        requests_per_second=args.requests_per_second,
         timeout=args.timeout,
+        workers_per_domain=args.workers,
+        checkpoint_file=args.checkpoint_file,
+        checkpoint_interval=args.checkpoint_interval,
         verbose=not args.quiet,
         enable_rate_limiting=not args.disable_rate_limiting,
-        requests_per_second=args.requests_per_second,
-        checkpoint_interval=args.checkpoint_interval,
-        checkpoint_file=args.checkpoint_file,
         dry_run=args.dry_run,
     )
 
@@ -181,14 +181,14 @@ async def async_main(args) -> None:
         )
         print(f"\n✓ Results saved to: {args.output}")
     except Exception as e:
-        print(f"\n✗ Error saving results: {str(e)}")
+        print(f"\n✗ Error saving results: {e!s}")
 
     if args.save_failed and results["failed"]:
         try:
             save_failed_to_file(results["failed"], args.save_failed)
             print(f"✓ Failed emails saved to: {args.save_failed}")
         except Exception as e:
-            print(f"✗ Error saving failed emails: {str(e)}")
+            print(f"✗ Error saving failed emails: {e!s}")
 
     if results["processed"] == results["total"]:
         checker.checkpoint_manager.clear_checkpoint()
@@ -220,14 +220,14 @@ async def async_main(args) -> None:
 
     # Dry-run mode indicator
     if args.dry_run:
-        print(f"Mode            : DRY-RUN (format validation only)")
+        print("Mode            : DRY-RUN (format validation only)")
 
     # Rate limiting stats
     rate_stats = results.get("rate_limiter_stats", {})
     if rate_stats:
         total_rate_limits = sum(stats.get("rate_limits_hit", 0) for stats in rate_stats.values())
         if total_rate_limits > 0:
-            print(f"\nRATE LIMITING STATS")
+            print("\nRATE LIMITING STATS")
             print("-"*50)
             print(f"Total rate limits hit: {total_rate_limits}")
             for domain, stats in rate_stats.items():

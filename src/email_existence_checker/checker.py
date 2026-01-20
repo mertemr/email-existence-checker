@@ -1,6 +1,7 @@
 """Email existence checker with SMTP validation."""
 
 import asyncio
+import contextlib
 from collections import defaultdict
 from textwrap import dedent
 from typing import Any
@@ -24,38 +25,39 @@ class EmailChecker:
     """Asynchronous email validator using SMTP with domain-based connection pools."""
 
     __slots__ = (
-        "max_retries",
-        "max_connections",
-        "workers_per_domain",
-        "timeout",
-        "pools",
-        "queues",
-        "results",
-        "failed",
-        "total_processed",
-        "lock",
-        "verbose",
         "_logged_domains",
-        "rate_limiter",
-        "checkpoint_manager",
         "checkpoint_interval",
-        "processed_emails",
-        "enable_rate_limiting",
+        "checkpoint_manager",
         "dry_run",
+        "enable_rate_limiting",
+        "failed",
+        "lock",
+        "max_connections",
+        "max_retries",
+        "pools",
+        "processed_emails",
+        "queues",
+        "rate_limiter",
+        "results",
+        "timeout",
+        "total_processed",
+        "verbose",
+        "workers_per_domain",
     )
 
     def __init__(
         self,
-        max_retries: int = 3,
         max_connections: int = 5,
-        workers_per_domain: int = 10,
-        timeout: int = 30,
-        verbose: bool = True,
-        enable_rate_limiting: bool = True,
+        max_retries: int = 3,
         requests_per_second: float = 10.0,
-        checkpoint_interval: int = 100,
+        timeout: int = 30,
+        workers_per_domain: int = 10,
         checkpoint_file: str = "checkpoint.json",
+        checkpoint_interval: int = 100,
+        *,
         dry_run: bool = False,
+        enable_rate_limiting: bool = True,
+        verbose: bool = True,
     ):
         """Initialize email checker.
 
@@ -133,7 +135,7 @@ class EmailChecker:
                             self._log(f"[{domain}] MX Server: {pool.mx_host}")
                             self._logged_domains.add(domain)
                     except Exception as e:
-                        raise Exception(f"Failed to initialize pool for {domain}: {str(e)}")
+                        raise Exception(f"Failed to initialize pool for {domain}") from e
         return self.pools[domain]
 
     async def check_email(self, task: EmailTask, pool: DomainConnectionPool) -> dict[str, Any]:
@@ -175,7 +177,7 @@ class EmailChecker:
                 return {
                     "email": email,
                     "is_valid": False,
-                    "error": f"Invalid format: {str(e)}",
+                    "error": f"Invalid format: {e!s}",
                     "attempts": 1,
                     "status": "dry-run",
                 }
@@ -239,33 +241,29 @@ class EmailChecker:
             return {
                 "email": email,
                 "is_valid": False,
-                "error": f"Invalid format: {str(e)}",
+                "error": f"Invalid format: {e!s}",
                 "attempts": task.attempt + 1,
                 "status": "failed",
             }
         except (RateLimitError, TemporaryError):
             if conn:
-                try:
+                with contextlib.suppress(Exception):
                     conn.quit()
-                except Exception:
-                    pass
             raise
         except Exception as e:
             if conn:
-                try:
+                with contextlib.suppress(Exception):
                     conn.quit()
-                except Exception:
-                    pass
 
             # Check if it's worth retrying
             error_str = str(e).lower()
-            if any(word in error_str for word in ["timeout", "connection", "network"]):
+            if any(word in error_str for word in ["timeout", "connection", "network"]):  # noqa: SIM102
                 if task.attempt < self.max_retries:
                     delay = min(2**task.attempt, 10)
                     await asyncio.sleep(delay)
                     task.attempt += 1
                     task.last_error = str(e)
-                    raise TemporaryError(f"Connection error: {str(e)}")
+                    raise TemporaryError(f"Connection error: {e!s}") from e
 
             return {
                 "email": email,
@@ -291,7 +289,7 @@ class EmailChecker:
                 pool = await self.get_or_create_pool(domain)
             except Exception as e:
                 if domain not in self._logged_domains:
-                    self._log(f"[{domain}] Pool init failed: {str(e)}")
+                    self._log(f"[{domain}] Pool init failed: {e!s}")
                     self._logged_domains.add(domain)
 
                 while not queue.empty():
@@ -300,7 +298,7 @@ class EmailChecker:
                         async with self.lock:
                             self.failed.append({
                                 "email": task.email,
-                                "error": f"Pool initialization failed: {str(e)}",
+                                "error": f"Pool initialization failed: {e!s}",
                                 "status": "failed",
                             })
                             self.total_processed += 1
@@ -371,14 +369,13 @@ class EmailChecker:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                self._log(f"[{domain}] Worker error: {str(e)}")
+                self._log(f"[{domain}] Worker error: {e!s}")
                 queue.task_done()
 
     def _save_checkpoint_sync(self) -> None:
         """Save checkpoint synchronously (called from async context)."""
         pending = []
-        for domain, queue in self.queues.items():
-            # Get pending emails from queue (approximation)
+        for _domain, queue in self.queues.items():
             pending.extend([task.email for task in list(queue._queue)])
 
         self.checkpoint_manager.save_checkpoint(
@@ -393,7 +390,7 @@ class EmailChecker:
         )
         self._log(f"[💾] Checkpoint saved ({self.total_processed} processed)")
 
-    async def process_emails(self, email_list: list[str], resume: bool = False) -> dict[str, Any]:
+    async def process_emails(self, email_list: list[str], *, resume: bool = False) -> dict[str, Any]:
         """Process a list of emails using domain-based queues and connection pools.
 
         Args:
@@ -450,7 +447,7 @@ class EmailChecker:
             Dry-Run Mode   : {'Enabled' if self.dry_run else 'Disabled'}
             Rate Limiting  : {'Enabled' if self.enable_rate_limiting else 'Disabled'}
             Checkpoints    : Every {self.checkpoint_interval} emails
-            
+
             :: Domains Detail ::"""
         ))  # fmt: skip
 
@@ -464,7 +461,7 @@ class EmailChecker:
 
         # Start workers
         workers = []
-        for domain in domain_groups.keys():
+        for domain in domain_groups:
             worker_count = min(self.workers_per_domain, len(domain_groups[domain]))
             for worker_id in range(worker_count):
                 worker = asyncio.create_task(self._worker(domain, worker_id))
@@ -478,7 +475,7 @@ class EmailChecker:
                 asyncio.gather(*[queue.join() for queue in self.queues.values()]),
                 timeout=300,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._log("\n[WARN] Processing timeout reached (5 minutes)")
         finally:
             for worker in workers:

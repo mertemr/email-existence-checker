@@ -34,11 +34,11 @@ from .rate_limiter import RateLimiter
 
 __version__ = version("email-existence-checker")
 __all__ = [
+    "CheckpointManager",
+    "DomainConnectionPool",
     "EmailChecker",
     "EmailTask",
-    "DomainConnectionPool",
     "RateLimiter",
-    "CheckpointManager",
     "read_emails_from_file",
     "write_results_to_file",
 ]

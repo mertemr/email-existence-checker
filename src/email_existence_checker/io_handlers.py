@@ -14,13 +14,11 @@ class FileHandler(ABC):
     @abstractmethod
     def read_emails(file_path: str | Path) -> list[str]:
         """Read emails from file."""
-        pass
 
     @staticmethod
     @abstractmethod
     def write_results(file_path: str | Path, data: dict[str, Any]) -> None:
         """Write results to file."""
-        pass
 
 
 class TXTHandler(FileHandler):
@@ -29,7 +27,7 @@ class TXTHandler(FileHandler):
     @staticmethod
     def read_emails(file_path: str | Path) -> list[str]:
         """Read emails from text file."""
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             return [line.strip() for line in f if line.strip()]
 
     @staticmethod
@@ -51,7 +49,7 @@ class CSVHandler(FileHandler):
         Expects CSV with 'email' column or reads first column.
         """
         emails = []
-        with open(file_path, "r", encoding="utf-8", newline="") as f:
+        with open(file_path, encoding="utf-8", newline="") as f:
             reader = csv.DictReader(f)
             if "email" in reader.fieldnames:
                 emails = [row["email"].strip() for row in reader if row.get("email")]
@@ -111,13 +109,13 @@ class JSONHandler(FileHandler):
 
         Expects JSON array of strings or objects with 'email' field.
         """
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             data = json.load(f)
 
         if isinstance(data, list):
             if all(isinstance(item, str) for item in data):
                 return data
-            elif all(isinstance(item, dict) for item in data):
+            if all(isinstance(item, dict) for item in data):
                 return [item["email"] for item in data if "email" in item]
 
         raise ValueError("JSON must be array of strings or objects with 'email' field")
@@ -170,16 +168,16 @@ def read_emails_from_file(file_path: str | Path) -> list[str]:
     return handler.read_emails(file_path)
 
 
-def write_results_to_file(file_path: str | Path, data: dict[str, Any], format: str | None = None) -> None:
+def write_results_to_file(file_path: str | Path, data: dict[str, Any], output_format: str | None = None) -> None:
     """Write results to file.
 
     Args:
         file_path: Path to output file
         data: Results data
-        format: Force specific format (txt, csv, json), or auto-detect from extension
+        output_format: Force specific format (txt, csv, json), or auto-detect from extension
     """
-    if format:
-        file_path = Path(file_path).with_suffix(f".{format.lower()}")
+    if output_format:
+        file_path = Path(file_path).with_suffix(f".{output_format.lower()}")
 
     handler = get_file_handler(file_path)
     handler.write_results(file_path, data)

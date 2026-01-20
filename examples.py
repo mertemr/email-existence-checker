@@ -3,10 +3,12 @@ Example usage scenarios for email-existence-checker
 """
 
 from email_existence_checker import (
+    CheckpointManager,
     EmailChecker,
     read_emails_from_file,
     write_results_to_file,
 )
+from email_existence_checker.checkpoint import save_failed_to_file
 
 
 # Example 1: Dry-run mode (format validation only)
@@ -22,7 +24,7 @@ async def dry_run_validation():
         "invalid.email",       # Invalid format (missing @)
         "test@gmail.com",      # Valid format
         "bad@@example.com",    # Invalid format (double @)
-    ]
+    ]  # fmt: skip
 
     results = await checker.process_emails(emails)
 
@@ -30,8 +32,8 @@ async def dry_run_validation():
     print(f"✗ Invalid format: {results['invalid']}")
 
     # Show details
-    for result in results['results']:
-        if result.get('is_valid'):
+    for result in results["results"]:
+        if result.get("is_valid"):
             print(f"  ✓ {result['email']}")
         else:
             print(f"  ✗ {result['email']}: {result.get('error', 'Invalid format')}")
@@ -137,8 +139,6 @@ async def batch_with_error_handling():
 
     # Save failed emails for retry
     if results["failed"]:
-        from email_existence_checker.checkpoint import save_failed_to_file
-
         save_failed_to_file(results["failed"], "failed_retry.txt")
         print(f"⚠ {len(results['failed'])} emails failed - saved to failed_retry.txt")
 
@@ -149,11 +149,7 @@ async def batch_with_error_handling():
 
     # Show domains with rate limiting issues
     rate_stats = results.get("rate_limiter_stats", {})
-    problematic_domains = [
-        domain
-        for domain, stats in rate_stats.items()
-        if stats.get("rate_limits_hit", 0) > 2
-    ]
+    problematic_domains = [domain for domain, stats in rate_stats.items() if stats.get("rate_limits_hit", 0) > 2]
 
     if problematic_domains:
         print("\n⚠ Domains with rate limiting issues:")
@@ -168,7 +164,7 @@ async def custom_pipeline():
     all_emails = read_emails_from_file("raw_emails.txt")
 
     # Preprocess: remove duplicates, normalize
-    unique_emails = list(set(email.lower().strip() for email in all_emails))
+    unique_emails = list({email.lower().strip() for email in all_emails})
     print(f"Removed {len(all_emails) - len(unique_emails)} duplicates")
 
     # Validate
@@ -185,8 +181,7 @@ async def custom_pipeline():
 
     # Save valid emails as plain text
     with open("validated_emails.txt", "w") as f:
-        for email in valid_emails:
-            f.write(f"{email}\n")
+        f.writelines(f"{email}\n" for email in valid_emails)
 
     print(f"✓ Saved {len(valid_emails)} valid emails")
 
@@ -194,7 +189,6 @@ async def custom_pipeline():
 # Example 7: Resume interrupted session
 async def resume_example():
     """Resume a previously interrupted session."""
-    from email_existence_checker import CheckpointManager
 
     checkpoint_mgr = CheckpointManager("checkpoint.json")
 

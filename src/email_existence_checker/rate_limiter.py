@@ -136,5 +136,5 @@ class RateLimiter:
         """
         return {
             domain: self.get_domain_stats(domain)
-            for domain in self.domain_states.keys()
+            for domain in self.domain_states
         }
