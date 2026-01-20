@@ -4,7 +4,7 @@ Asynchronous email validator using SMTP with domain-based connection pooling, in
 
 ## Features
 
-**High Performance**: Asynchronous processing with domain-based connection pooling
+- **High Performance**: Asynchronous processing with domain-based connection pooling
 - **Dry-Run Mode**: Validate email format without SMTP checks (for fast pre-screening)
 - **Smart Retry Logic**: SMTP code-aware retry with exponential backoff
 - **Rate Limiting**: Adaptive throttling prevents server blocks (especially for Outlook, Gmail)
