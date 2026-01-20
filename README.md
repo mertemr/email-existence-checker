@@ -238,7 +238,7 @@ Mode            : DRY-RUN (format validation only)
 ==================================================
 ```
 
-**Note on Precision:** Console output uses `.3f` precision to avoid rounding errors in statistics. Full precision values are preserved in JSON/CSV output files.
+**Note on Precision:** Console output uses `.2f` precision for elapsed time and speed, and `.1f` for percentages, to avoid rounding errors in statistics. Full precision values are preserved in JSON/CSV output files.
 
 #### JSON Output Format
 
