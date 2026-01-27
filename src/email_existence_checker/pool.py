@@ -1,6 +1,7 @@
 """SMTP connection pool management for domains."""
 
 import asyncio
+import contextlib
 import smtplib
 
 import dns.resolver
@@ -74,7 +75,7 @@ class DomainConnectionPool:
         # Wait for available connection
         try:
             return await asyncio.wait_for(self.available.get(), timeout=10.0)
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             raise SMTPConnectionError(f"Timeout waiting for connection for {self.domain}") from e
 
     def _create_connection(self) -> smtplib.SMTP:
@@ -102,7 +103,5 @@ class DomainConnectionPool:
     async def close_all(self) -> None:
         """Close all connections in the pool."""
         for conn in self.connections:
-            try:
+            with contextlib.suppress(Exception):
                 conn.quit()
-            except Exception:
-                pass

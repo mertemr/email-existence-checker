@@ -1,11 +1,130 @@
 # Advanced Usage Guide
 
 ## Table of Contents
+- [Dry-Run Mode](#dry-run-mode)
 - [Smart Retry Mechanism](#smart-retry-mechanism)
 - [Rate Limiting](#rate-limiting)
 - [Checkpoint & Resume](#checkpoint--resume)
 - [Multi-Format File Support](#multi-format-file-support)
 - [Real-World Scenarios](#real-world-scenarios)
+
+---
+
+## Dry-Run Mode
+
+Dry-run mode validates only the email format **without making SMTP connections**. This is useful for quick pre-screening of large email lists before full validation.
+
+### How It Works
+
+1. **Format Validation Only**: Uses `email-validator` library to check format
+2. **No SMTP Checks**: Doesn't connect to mail servers
+3. **Fast Processing**: Validates hundreds of emails per second
+4. **No Rate Limiting**: Completely bypasses rate limiting concerns
+
+### Configuration
+
+```python
+checker = EmailChecker(
+    dry_run=True,  # Enable dry-run mode
+)
+
+results = await checker.process_emails(emails)
+```
+
+### CLI Usage
+
+```bash
+# Quick format check
+email-checker -f emails.txt --dry-run
+
+# With output file
+email-checker -f emails.txt --dry-run -o format_validated.json
+
+# Combine with other options (rate limiting disabled in dry-run)
+email-checker -f emails.csv --dry-run -o results.csv
+```
+
+### Example Output
+
+```python
+results = await checker.process_emails([
+    "user@example.com",      # Valid
+    "invalid.email",         # Invalid (no @ domain)
+    "bad@@example.com",      # Invalid (double @)
+    "test@gmail.com",        # Valid
+])
+
+print(f"Valid format: {results['valid']}")      # 2
+print(f"Invalid format: {results['invalid']}")  # 2
+
+# Check details
+for result in results['results']:
+    print(f"{result['email']}: {result['status']}")
+```
+
+**Output:**
+```
+[✓] [DRY-RUN] [example.com] user@example.com      Format OK
+[✗] [DRY-RUN] [example.com] invalid.email          Format ERROR
+[✗] [DRY-RUN] [example.com] bad@@example.com       Format ERROR
+[✓] [DRY-RUN] [gmail.com] test@gmail.com           Format OK
+
+Valid format: 2
+Invalid format: 2
+```
+
+### Use Cases
+
+1. **Pre-screening large lists**: Quick format check before full validation
+   ```bash
+   # 10k emails in seconds
+   email-checker -f 10k_emails.txt --dry-run
+   ```
+
+2. **Data quality audit**: Identify malformed emails
+   ```python
+   results = await checker.process_emails(imported_emails, dry_run=True)
+   invalid_emails = [r for r in results['results'] if not r['is_valid']]
+   ```
+
+3. **Development/Testing**: No external server dependencies
+   ```python
+   # Test without needing SMTP access
+   checker = EmailChecker(dry_run=True, verbose=True)
+   results = await checker.process_emails(test_data)
+   ```
+
+4. **Two-stage validation**: Format check, then SMTP check
+   ```python
+   # Stage 1: Fast format check
+   dry_checker = EmailChecker(dry_run=True)
+   format_results = await dry_checker.process_emails(all_emails)
+   
+   # Stage 2: Full validation on valid formats
+   valid_emails = [r['email'] for r in format_results['results'] if r['is_valid']]
+   full_checker = EmailChecker(dry_run=False, enable_rate_limiting=True)
+   final_results = await full_checker.process_emails(valid_emails)
+   ```
+
+### Result Format in Dry-Run
+
+```json
+{
+  "email": "user@example.com",
+  "is_valid": true,
+  "smtp_code": null,
+  "smtp_message": "Format validation only (dry-run)",
+  "attempts": 1,
+  "status": "dry-run"
+}
+```
+
+### Performance Comparison
+
+| Mode | Speed | SMTP Needed | Use Case |
+|------|-------|-------------|----------|
+| **Dry-Run** | Very Fast (1000+/sec) | No | Pre-screening, QA |
+| **Full SMTP** | Slower (5-20/sec) | Yes | Production validation |
 
 ---
 
@@ -372,3 +491,4 @@ checker = EmailChecker(
     max_retries=5,
 )
 ```
+

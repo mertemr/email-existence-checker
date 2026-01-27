@@ -1,7 +1,7 @@
 """Checkpoint and resume functionality for email validation."""
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -36,7 +36,7 @@ class CheckpointManager:
             stats: Additional statistics
         """
         checkpoint = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "processed_emails": processed_emails,
             "pending_emails": pending_emails,
             "results": results,
@@ -57,9 +57,9 @@ class CheckpointManager:
             return None
 
         try:
-            with open(self.checkpoint_file, "r", encoding="utf-8") as f:
+            with open(self.checkpoint_file, encoding="utf-8") as f:
                 return json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             print(f"Warning: Could not load checkpoint: {e}")
             return None
 
@@ -87,6 +87,7 @@ class CheckpointManager:
             return checkpoint.get("pending_emails", [])
         return []
 
+    # TODO: Add timezone to this function (or projectwise).
     def get_checkpoint_info(self) -> dict[str, Any] | None:
         """Get information about checkpoint.
 
@@ -135,7 +136,7 @@ def load_failed_from_file(input_file: str | Path) -> list[str]:
         return []
 
     emails = []
-    with open(input_path, "r", encoding="utf-8") as f:
+    with open(input_path, encoding="utf-8") as f:
         for line in f:
             # Strip comments
             email = line.split("#")[0].strip()
