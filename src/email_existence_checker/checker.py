@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import sys
 from collections import defaultdict
 from textwrap import dedent
 from typing import Any
@@ -106,7 +107,11 @@ class EmailChecker:
     def _log(self, message: str) -> None:
         """Print message if verbose mode is enabled."""
         if self.verbose:
-            print(message)
+            try:
+                print(message)
+            except UnicodeEncodeError:
+                encoding = sys.stdout.encoding or "utf-8"
+                print(message.encode(encoding, errors="replace").decode(encoding))
 
     async def get_or_create_pool(self, domain: str) -> DomainConnectionPool:
         """Get existing pool or create new one for domain.
@@ -159,7 +164,7 @@ class EmailChecker:
         # Dry-run mode: validate format only
         if self.dry_run:
             try:
-                valid = validate_email(email)
+                valid = validate_email(email, check_deliverability=False)
                 email = valid.normalized
                 status_icon = "✓"
                 self._log(f"[{status_icon}] [DRY-RUN] [{domain}] {email:40} Format OK")
@@ -352,6 +357,7 @@ class EmailChecker:
                             self._log(f"[✗] [{domain}] {task.email:40} FAILED: {str(e)[:30]}")
                 except Exception as e:
                     if task.attempt < self.max_retries:
+                        task.attempt += 1
                         await queue.put(task)
                     else:
                         async with self.lock:

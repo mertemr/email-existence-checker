@@ -48,17 +48,17 @@ email-checker -f emails.csv --dry-run -o results.csv
 
 ```python
 results = await checker.process_emails([
-    "user@example.com",      # Valid
-    "invalid.email",         # Invalid (no @ domain)
-    "bad@@example.com",      # Invalid (double @)
-    "test@gmail.com",        # Valid
+    "user@example.com",  # Valid
+    "invalid.email",  # Invalid (no @ domain)
+    "bad@@example.com",  # Invalid (double @)
+    "test@gmail.com",  # Valid
 ])
 
-print(f"Valid format: {results['valid']}")      # 2
+print(f"Valid format: {results['valid']}")  # 2
 print(f"Invalid format: {results['invalid']}")  # 2
 
 # Check details
-for result in results['results']:
+for result in results["results"]:
     print(f"{result['email']}: {result['status']}")
 ```
 
@@ -84,7 +84,7 @@ Invalid format: 2
 2. **Data quality audit**: Identify malformed emails
    ```python
    results = await checker.process_emails(imported_emails, dry_run=True)
-   invalid_emails = [r for r in results['results'] if not r['is_valid']]
+   invalid_emails = [r for r in results["results"] if not r["is_valid"]]
    ```
 
 3. **Development/Testing**: No external server dependencies
@@ -99,9 +99,9 @@ Invalid format: 2
    # Stage 1: Fast format check
    dry_checker = EmailChecker(dry_run=True)
    format_results = await dry_checker.process_emails(all_emails)
-   
+
    # Stage 2: Full validation on valid formats
-   valid_emails = [r['email'] for r in format_results['results'] if r['is_valid']]
+   valid_emails = [r["email"] for r in format_results["results"] if r["is_valid"]]
    full_checker = EmailChecker(dry_run=False, enable_rate_limiting=True)
    final_results = await full_checker.process_emails(valid_emails)
    ```
@@ -205,7 +205,7 @@ After processing, check rate limiter statistics:
 ```python
 results = await checker.process_emails(emails)
 
-for domain, stats in results['rate_limiter_stats'].items():
+for domain, stats in results["rate_limiter_stats"].items():
     print(f"{domain}:")
     print(f"  Requests: {stats['request_count']}")
     print(f"  Rate limits hit: {stats['rate_limits_hit']}")
@@ -333,7 +333,7 @@ write_results_to_file("results.csv", output_data)
 write_results_to_file("valid_only.txt", output_data)  # Valid emails only
 
 # Force specific format
-write_results_to_file("output", output_data, format="csv")
+write_results_to_file("output", output_data, output_format="csv")
 ```
 
 ---
@@ -441,18 +441,15 @@ checker = EmailChecker(
 # Save for later retry
 from email_existence_checker.checkpoint import save_failed_to_file
 
-if results['failed']:
-    save_failed_to_file(results['failed'], 'retry_later.txt')
+if results["failed"]:
+    save_failed_to_file(results["failed"], "retry_later.txt")
 ```
 
 ### 4. Monitor Rate Limiter Stats
 
 ```python
-rate_stats = results.get('rate_limiter_stats', {})
-blocked_domains = [
-    domain for domain, stats in rate_stats.items()
-    if stats.get('rate_limits_hit', 0) > 5
-]
+rate_stats = results.get("rate_limiter_stats", {})
+blocked_domains = [domain for domain, stats in rate_stats.items() if stats.get("rate_limits_hit", 0) > 5]
 
 if blocked_domains:
     print(f"Warning: These domains may need slower rate: {blocked_domains}")
@@ -465,29 +462,29 @@ if blocked_domains:
 ### For Speed
 ```python
 checker = EmailChecker(
-    workers_per_domain=20,       # More concurrent workers
-    max_connections=10,          # More SMTP connections
-    requests_per_second=15.0,    # Higher rate (risky!)
-    max_retries=2,               # Fewer retries
+    workers_per_domain=20,  # More concurrent workers
+    max_connections=10,  # More SMTP connections
+    requests_per_second=15.0,  # Higher rate (risky!)
+    max_retries=2,  # Fewer retries
 )
 ```
 
 ### For Reliability
 ```python
 checker = EmailChecker(
-    workers_per_domain=5,        # Fewer concurrent workers
-    max_connections=3,           # Fewer connections
-    requests_per_second=3.0,     # Conservative rate
-    max_retries=10,              # More retries
-    checkpoint_interval=50,      # Frequent checkpoints
+    workers_per_domain=5,  # Fewer concurrent workers
+    max_connections=3,  # Fewer connections
+    requests_per_second=3.0,  # Conservative rate
+    max_retries=10,  # More retries
+    checkpoint_interval=50,  # Frequent checkpoints
 )
 ```
 
 ### For Corporate Email Servers
 ```python
 checker = EmailChecker(
-    timeout=60,                  # Longer timeout
-    requests_per_second=2.0,     # Very conservative
+    timeout=60,  # Longer timeout
+    requests_per_second=2.0,  # Very conservative
     max_retries=5,
 )
 ```

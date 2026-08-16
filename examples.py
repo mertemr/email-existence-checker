@@ -135,7 +135,7 @@ async def batch_with_error_handling():
     results = await checker.process_emails(emails, resume=True)
 
     # Save successful validations
-    write_results_to_file("valid_emails.csv", results, format="csv")
+    write_results_to_file("valid_emails.csv", results, output_format="csv")
 
     # Save failed emails for retry
     if results["failed"]:

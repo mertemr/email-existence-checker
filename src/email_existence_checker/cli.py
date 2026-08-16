@@ -1,6 +1,7 @@
 """Command-line interface for email existence checker."""
 
 import asyncio
+import sys
 import time
 from argparse import ArgumentParser
 
@@ -195,7 +196,7 @@ async def async_main(args) -> None:
         write_results_to_file(
             args.output,
             output_data,
-            format=args.output_format,
+            output_format=args.output_format,
         )
         print(f"\n✓ Results saved to: {args.output}")
     except Exception as e:
@@ -257,6 +258,10 @@ async def async_main(args) -> None:
 
 def main() -> None:
     """Main entry point for CLI."""
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
+        sys.stderr.reconfigure(errors="replace")
+
     parser = create_parser()
     args = parser.parse_args()
     asyncio.run(async_main(args))

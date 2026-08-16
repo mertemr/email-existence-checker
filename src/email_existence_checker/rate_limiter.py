@@ -38,9 +38,7 @@ class RateLimiter:
         self.requests_per_second = requests_per_second
         self.burst_size = burst_size
         self.rate_limit_cooldown = rate_limit_cooldown
-        self.domain_states: dict[str, RateLimitState] = defaultdict(
-            lambda: RateLimitState(domain="")
-        )
+        self.domain_states: dict[str, RateLimitState] = defaultdict(lambda: RateLimitState(domain=""))
         self.locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
     async def acquire(self, domain: str) -> None:
@@ -134,7 +132,4 @@ class RateLimiter:
         Returns:
             Dictionary of domain statistics
         """
-        return {
-            domain: self.get_domain_stats(domain)
-            for domain in self.domain_states
-        }
+        return {domain: self.get_domain_stats(domain) for domain in self.domain_states}
