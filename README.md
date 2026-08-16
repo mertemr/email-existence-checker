@@ -31,12 +31,7 @@ pip install email-existence-checker
 ### From source with uv
 
 ```bash
-# Clone the repository
-git clone https://github.com/mertemr/email-existence-checker.git
-cd email-existence-checker
-
-# Install with uv
-uv pip install -e .
+uvx --from git+https://github.com/mertemr/email-existence-checker.git email-checker
 ```
 
 ## Usage
