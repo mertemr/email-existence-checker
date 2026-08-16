@@ -1,5 +1,10 @@
 # Email Existence Checker
 
+[![CI](https://github.com/mertemr/email-existence-checker/actions/workflows/ci.yml/badge.svg)](https://github.com/mertemr/email-existence-checker/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/email-existence-checker.svg)](https://pypi.org/project/email-existence-checker/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/email-existence-checker.svg)](https://pypi.org/project/email-existence-checker/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Asynchronous email validator using SMTP with domain-based connection pooling, intelligent rate limiting, and checkpoint support for high-performance email verification.
 
 ## Features
@@ -87,6 +92,7 @@ email-checker -f emails.txt -q
 import asyncio
 from email_existence_checker import EmailChecker
 
+
 async def main():
     # Create checker instance with rate limiting
     checker = EmailChecker(
@@ -97,32 +103,29 @@ async def main():
         enable_rate_limiting=True,
         requests_per_second=10.0,
         checkpoint_interval=100,
-        verbose=True
+        verbose=True,
     )
-    
+
     # Validate emails
-    emails = [
-        "user@example.com",
-        "test@domain.org",
-        "invalid@nonexistent.xyz"
-    ]
-    
+    emails = ["user@example.com", "test@domain.org", "invalid@nonexistent.xyz"]
+
     results = await checker.process_emails(emails)
-    
+
     # Access results
     print(f"Total: {results['total']}")
     print(f"Valid: {results['valid']}")
     print(f"Invalid: {results['invalid']}")
-    
+
     # Detailed results
-    for result in results['results']:
+    for result in results["results"]:
         print(f"{result['email']}: {result['is_valid']}")
-    
+
     # Check rate limiter stats
-    if results.get('rate_limiter_stats'):
-        for domain, stats in results['rate_limiter_stats'].items():
-            if stats.get('rate_limits_hit', 0) > 0:
+    if results.get("rate_limiter_stats"):
+        for domain, stats in results["rate_limiter_stats"].items():
+            if stats.get("rate_limits_hit", 0) > 0:
                 print(f"⚠ {domain}: hit rate limit {stats['rate_limits_hit']} times")
+
 
 # Run
 asyncio.run(main())
@@ -134,23 +137,25 @@ asyncio.run(main())
 import asyncio
 from email_existence_checker import EmailChecker
 
+
 async def validate_format():
     # Use dry-run mode to validate email format without SMTP checks
     checker = EmailChecker(
         dry_run=True,  # Only validate format
-        verbose=True
+        verbose=True,
     )
-    
+
     emails = [
-        "user@example.com",      # Valid format
-        "invalid.email",          # Missing @ domain
-        "test@domain.org"         # Valid format
+        "user@example.com",  # Valid format
+        "invalid.email",  # Missing @ domain
+        "test@domain.org",  # Valid format
     ]
-    
+
     results = await checker.process_emails(emails)
-    for result in results['results']:
-        status = "✓" if result['is_valid'] else "✗"
+    for result in results["results"]:
+        status = "✓" if result["is_valid"] else "✗"
         print(f"{status} {result['email']}: {result.get('status')}")
+
 
 asyncio.run(validate_format())
 ```
@@ -172,17 +177,6 @@ asyncio.run(validate_format())
 [✗] [DRY-RUN] [test.org]    invalid.email            Format ERROR
 [✓] [DRY-RUN] [domain.org]  test@domain.org          Format OK
 ```
-
-#### Full Example
-
-```python
-import asyncio
-from email_existence_checker import EmailChecker
-
-async def main():
-    emails = [
-        "user@example.com",
-        "test@domain.org",
 
 ### Input File Format
 
@@ -348,20 +342,20 @@ Main class for email validation.
 
 ```python
 {
-    "total": int,                    # Total emails to process
-    "processed": int,                # Emails processed
-    "valid": int,                    # Valid emails count
-    "invalid": int,                  # Invalid emails count
-    "results": list[dict],           # Detailed results
-    "failed": list[dict],            # Failed validations
-    "rate_limiter_stats": dict,      # Rate limiter statistics
+    "total": int,  # Total emails to process
+    "processed": int,  # Emails processed
+    "valid": int,  # Valid emails count
+    "invalid": int,  # Invalid emails count
+    "results": list[dict],  # Detailed results
+    "failed": list[dict],  # Failed validations
+    "rate_limiter_stats": dict,  # Rate limiter statistics
 }
 ```
 
 ### Utility Functions
 
 - `read_emails_from_file(path)`: Read emails from TXT/CSV/JSON file
-- `write_results_to_file(path, data, format=None)`: Write results in any format
+- `write_results_to_file(path, data, output_format=None)`: Write results in any format
 - `save_failed_to_file(failed, path)`: Save failed emails for retry
 
 ## Documentation
@@ -377,24 +371,21 @@ git clone https://github.com/mertemr/email-existence-checker.git
 cd email-existence-checker
 
 # Install in development mode
-uv pip install -e ".[dev]"
+uv sync --all-groups
 
-# Run tests
-pytest
-
-# Format code
-black src/
-ruff check src/
+# Lint and format
+uv run ruff check .
+uv run ruff format .
 ```
 
 ## Building and Publishing
 
-```bash
-# Build package
-uv build
+Releases are built and published to PyPI automatically by [GitHub Actions](.github/workflows/publish.yml) whenever a GitHub Release is published, using [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/) (no API tokens required).
 
-# Publish to PyPI
-uv publish
+To build the package locally:
+
+```bash
+uv build
 ```
 
 ## Requirements

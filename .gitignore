@@ -12,3 +12,7 @@ wheels/
 # IDE
 .idea
 .vscode
+
+# Runtime artifacts
+checkpoint.json
+results.json
